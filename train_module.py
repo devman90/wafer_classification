@@ -16,26 +16,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import os
-
-# -*- CONFIGUREATIONS -*- 
-NAME = 'model1'
-IMAGE_SIZE = 16   # 32, 16
-LEARNING_RATE = 0.001   # 0.01, 0.001, 0.0001 
-EARLY_STOPPING = 50
-EPOCHS = 1000
-BALANCED = False # True이면 train batch 뽑을 때 y가 골고루 나오도록 한다.
-ARCH = 1
-PATH = 'model1'
-
-# data_generator.py
-import numpy as np
 import keras
 import random
 
+
 class DataGenerator(keras.utils.Sequence):
+  'Generate mini-batchs'
   def __init__(self, X, Y, batch_size=32, 
-               shuffle=True, augment=True, 
-               balanced=False, verbose=0):
+              shuffle=True, augment=True, 
+              balanced=False, verbose=0):
     self.shuffle = shuffle
     self.augment = augment
     self.batch_size = batch_size
@@ -126,26 +115,6 @@ class DataGenerator(keras.utils.Sequence):
     if self.balanced == False and self.shuffle == True:
       np.random.shuffle(self.indexes)
 
-def read_xy(pickle_path):
-  df = pd.read_pickle(pickle_path)
-  X = np.array(list(df['waferMap'].values), dtype=np.float32)
-  Y = df['failureNum'].values
-  return X, Y
-
-x_train, y_train = read_xy('data/wafer_train_{}.pkl'.format(IMAGE_SIZE))
-
-print('x_train.shape:', x_train.shape)
-print('y_train.shape:', y_train.shape)
-
-x_valid, y_valid = read_xy('data/wafer_valid_{}.pkl'.format(IMAGE_SIZE))
-
-print('valid_X.shape:', x_valid.shape)
-print('valid_Y.shape:', y_valid.shape)
-
-x_test, y_test = read_xy('data/wafer_test_{}.pkl'.format(IMAGE_SIZE))
-
-import numpy
-
 class OneHotHelper:
   '일반 형태 <-> One Hot 형태'
   def __init__(self, labels=[]):
@@ -194,102 +163,163 @@ def test_onehot():
 
 # test_onehot()
 
-onehot_helper = OneHotHelper(labels=[0, 1, 2, 3, 4, 5, 6, 7, 8])
-y_train_onehot = onehot_helper.transform(y_train)
-y_valid_onehot = onehot_helper.transform(y_valid)
 
-dataset = DataGenerator(x_train, y_train, batch_size=1, shuffle=False, verbose=1)
-batch_x, batch_y = dataset[0]
-plt.imshow(batch_x[0])
+def train_model(name=None, image_size=32, learning_rate=0.001, early_stopping=50, epochs=1000, arch=1, path=None):
+  from datetime import datetime
+  now = datetime.now()
+  time_str = now.strftime("%Y%m%d_%H%M%S")
+  NAME = name
+  if NAME is None:
+    NAME = 'model_' + time_str
+  IMAGE_SIZE = image_size   # 32, 16
+  LEARNING_RATE = learning_rate   # 0.01, 0.001, 0.0001 
+  EARLY_STOPPING = early_stopping
+  EPOCHS = epochs
+  BALANCED = False # True이면 train batch 뽑을 때 y가 골고루 나오도록 한다.
+  ARCH = arch
+  PATH = path
+  if PATH is None:
+    PATH = 'model_' + time_str
 
-from keras.models import Sequential, Model
-from keras.layers import Input, Dense, Dropout, Activation, Flatten, Conv2D, BatchNormalization, Reshape, MaxPooling2D
+  def read_xy(pickle_path):
+    df = pd.read_pickle(pickle_path)
+    X = np.array(list(df['waferMap'].values), dtype=np.float32)
+    Y = df['failureNum'].values
+    return X, Y
 
-def build_model(input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3), outputs=9):
-  model = Sequential([
-    Conv2D(16, 3, padding='same', activation='relu', input_shape=input_shape),
-    MaxPooling2D(),
-    Conv2D(32, 3, padding='same', activation='relu'),
-    MaxPooling2D(),
-    Conv2D(64, 3, padding='same', activation='relu'),
-    MaxPooling2D(),
-    Dropout(0.2),
-    Flatten(),
-    Dense(128, activation='relu'),
-    Dense(outputs, activation='softmax')
-  ])
-  return model
+  x_train, y_train = read_xy('data/wafer_train_{}.pkl'.format(IMAGE_SIZE))
 
-model = build_model(input_shape=(16, 16, 3), outputs=9)
+  print('x_train.shape:', x_train.shape)
+  print('y_train.shape:', y_train.shape)
 
-model.summary()
+  x_valid, y_valid = read_xy('data/wafer_valid_{}.pkl'.format(IMAGE_SIZE))
 
-from keras.optimizers import Adam
-opt = Adam(lr=LEARNING_RATE)
-model.compile(loss = 'categorical_crossentropy', optimizer = opt, metrics = ['accuracy'])
+  print('valid_X.shape:', x_valid.shape)
+  print('valid_Y.shape:', y_valid.shape)
 
-dataset = DataGenerator(x_train, y_train_onehot, batch_size=32, shuffle=True, balanced=BALANCED)
+  x_test, y_test = read_xy('data/wafer_test_{}.pkl'.format(IMAGE_SIZE))
 
-best_f1 = 0.0
-early_stop_counter = 0
-model_save_path = os.path.join(PATH, NAME + '.h5')
-history_accum = {k:[] for k in ['loss', 'accuracy', 'val_loss', 'val_accuracy', 'f1_score']}
+  import numpy
 
-from sklearn.metrics import f1_score
+  onehot_helper = OneHotHelper(labels=[0, 1, 2, 3, 4, 5, 6, 7, 8])
+  y_train_onehot = onehot_helper.transform(y_train)
+  y_valid_onehot = onehot_helper.transform(y_valid)
 
-for epoch in range(EPOCHS):
-  history = model.fit_generator(dataset)
+  dataset = DataGenerator(x_train, y_train, batch_size=1, shuffle=False, verbose=1)
+  batch_x, batch_y = dataset[0]
+  plt.imshow(batch_x[0])
+
+  from keras.models import Sequential, Model
+  from keras.layers import Input, Dense, Dropout, Activation, Flatten, Conv2D, BatchNormalization, Reshape, MaxPooling2D
+
+  def build_model_1(input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3), outputs=9):
+    model = Sequential([
+      Conv2D(16, 3, padding='same', activation='relu', input_shape=input_shape),
+      MaxPooling2D(),
+      Conv2D(32, 3, padding='same', activation='relu'),
+      MaxPooling2D(),
+      Conv2D(64, 3, padding='same', activation='relu'),
+      MaxPooling2D(),
+      Dropout(0.2),
+      Flatten(),
+      Dense(128, activation='relu'),
+      Dense(outputs, activation='softmax')
+    ])
+    return model
+
+  def build_model_2(input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3), outputs=9):
+    model = Sequential([
+      Conv2D(16, 3, padding='same', activation='relu', input_shape=input_shape),
+      Conv2D(32, 3, padding='same', activation='relu')
+      MaxPooling2D(),
+      Conv2D(32, 3, padding='same', activation='relu'),
+      Conv2D(32, 3, padding='same', activation='relu'),
+      MaxPooling2D(),
+      Conv2D(32, 3, padding='same', activation='relu'),
+      Conv2D(16, 3, padding='same', activation='relu'),
+      MaxPooling2D(),
+      Dropout(0.2),
+      Flatten(),
+      Dense(128, activation='relu'),
+      Dense(outputs, activation='softmax')
+    ])
+    return model
+
+  model_builder = [None, build_model_1, build_model_2]
+
+  model = model_builder[ARCH](input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3), outputs=9)
+
+  model.summary()
+
+  from keras.optimizers import Adam
+  opt = Adam(lr=LEARNING_RATE)
+  model.compile(loss = 'categorical_crossentropy', optimizer = opt, metrics = ['accuracy'])
+
+  dataset = DataGenerator(x_train, y_train_onehot, batch_size=32, shuffle=True, balanced=BALANCED)
+
+  best_f1 = 0.0
+  early_stop_counter = 0
+  model_save_path = os.path.join(PATH, NAME + '.h5')
+  history_accum = {k:[] for k in ['loss', 'accuracy', 'val_loss', 'val_accuracy', 'f1_score']}
+
+  from sklearn.metrics import f1_score
+
+  for epoch in range(EPOCHS):
+    history = model.fit_generator(dataset)
+
+    y_pred_soft = model.predict(x_valid)
+    y_pred = np.array(onehot_helper.recover(y_pred_soft))
+    f1 = f1_score(y_valid, y_pred, average='macro')
+    print('f1:', f1)
+    for k in history.history:
+      history_accum[k] += history.history[k]
+    history_accum['f1_score'] += [f1]
+    early_stop_counter += 1
+    if best_f1 < f1:
+      best_f1 = f1
+      early_stop_counter = 0
+      print('Best f1 changed:', best_f1)
+      os.makedirs(PATH, exist_ok=True)
+      model.save(model_save_path)
+    if early_stop_counter >= EARLY_STOPPING:
+      break
+
+  model = keras.models.load_model(model_save_path)
 
   y_pred_soft = model.predict(x_valid)
   y_pred = np.array(onehot_helper.recover(y_pred_soft))
-  f1 = f1_score(y_valid, y_pred, average='macro')
-  print('f1:', f1)
-  for k in history.history:
-    history_accum[k] += history.history[k]
-  history_accum['f1_score'] += [f1]
-  early_stop_counter += 1
-  if best_f1 < f1:
-    best_f1 = f1
-    early_stop_counter = 0
-    print('Best f1 changed:', best_f1)
-    os.makedirs(PATH, exist_ok=True)
-    model.save(model_save_path)
-  if early_stop_counter >= EARLY_STOPPING:
-    break
 
-model = keras.models.load_model(model_save_path)
+  from sklearn.metrics import f1_score, recall_score, precision_score
+  from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
 
-y_pred_soft = model.predict(x_valid)
-y_pred = np.array(onehot_helper.recover(y_pred_soft))
+  # 결과 기록
+  os.makedirs(PATH, exist_ok=True)
+  with open(os.path.join(PATH, 'result.txt'), 'w') as f:
+    f1_res = f1_score(y_valid, y_pred, average='macro')
+    f.write(str(f1_res))
+    f.write('\n')
+    print(f1_res)
 
-from sklearn.metrics import f1_score, recall_score, precision_score
-from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
+    report = classification_report(y_valid, y_pred)
+    print(report)
+    f.write(str(report))
+    f.write('\n')
+    conf = confusion_matrix(y_valid, y_pred)
+    print(conf)
+    f.write(str(conf))
+    f.write('\n')
 
-# 결과 기록
-os.makedirs(PATH, exist_ok=True)
-with open(os.path.join(PATH, 'result.txt'), 'w') as f:
-  f1_res = f1_score(y_valid, y_pred, average='macro')
-  f.write(str(f1_res))
-  f.write('\n')
-  print(f1_res)
+    f.write(str(history_accum))
+    f.write('\n')
+    print(history_accum)
 
-  report = classification_report(y_valid, y_pred)
-  print(report)
-  f.write(str(report))
-  f.write('\n')
-  conf = confusion_matrix(y_valid, y_pred)
-  print(conf)
-  f.write(str(conf))
-  f.write('\n')
+  y_test_soft = model.predict(x_test)
+  y_test = np.array(onehot_helper.recover(y_test_soft))
 
-  f.write(str(history_accum))
-  f.write('\n')
-  print(history_accum)
+  pd.DataFrame({
+      'failureNum': y_test
+  }).to_pickle(os.path.join(PATH, 'y_test_pred.pkl'))
 
-y_test_soft = model.predict(x_test)
-y_test = np.array(onehot_helper.recover(y_test_soft))
 
-pd.DataFrame({
-    'failureNum': y_test
-}).to_pickle(os.path.join(PATH, 'y_test_pred.pkl'))
-
+if __name__ == '__main__':
+  train_model(name='model3', image_size=32, learning_rate=0.001, early_stopping=50, epochs=1000, arch=2, path='model3')
