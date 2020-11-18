@@ -15,22 +15,22 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
-import os
 
 # -*- CONFIGUREATIONS -*- 
-NAME = 'model1'
-IMAGE_SIZE = 16   # 32, 16
+NAME = 'model2'
+IMAGE_SIZE = 32   # 32, 16
 LEARNING_RATE = 0.001   # 0.01, 0.001, 0.0001 
 EARLY_STOPPING = 50
 EPOCHS = 1000
 BALANCED = False # True이면 train batch 뽑을 때 y가 골고루 나오도록 한다.
 ARCH = 1
-PATH = 'model1'
+PATH = 'model2'
 
 # data_generator.py
 import numpy as np
 import keras
 import random
+import os
 
 class DataGenerator(keras.utils.Sequence):
   def __init__(self, X, Y, batch_size=32, 
