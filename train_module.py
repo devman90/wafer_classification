@@ -205,7 +205,7 @@ plt.imshow(batch_x[0])
 from keras.models import Sequential, Model
 from keras.layers import Input, Dense, Dropout, Activation, Flatten, Conv2D, BatchNormalization, Reshape, MaxPooling2D
 
-def build_model(input_shape=(16, 16, 3), outputs=9):
+def build_model(input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3), outputs=9):
   model = Sequential([
     Conv2D(16, 3, padding='same', activation='relu', input_shape=input_shape),
     MaxPooling2D(),

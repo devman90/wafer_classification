@@ -220,7 +220,7 @@ def build_model(input_shape=(16, 16, 3), outputs=9):
   ])
   return model
 
-model = build_model(input_shape=(16, 16, 3), outputs=9)
+model = build_model(input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3), outputs=9)
 
 model.summary()
 
