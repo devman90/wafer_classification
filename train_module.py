@@ -19,7 +19,13 @@ import tensorflow as tf
 import os
 import keras
 import random
-
+from keras.models import Sequential, Model
+from keras.layers import Input, Dense, Dropout, Activation, Flatten, Conv2D, BatchNormalization, Reshape, MaxPooling2D
+from datetime import datetime
+from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, recall_score, precision_score
+from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
+from keras.optimizers import Adam
 
 class DataGenerator(keras.utils.Sequence):
   'Generate mini-batchs'
@@ -166,14 +172,12 @@ def test_onehot():
 
 
 def train_model(model, name=None, image_size=32, early_stopping_min=1, epochs_min=20, path=None):
-  from datetime import datetime
   now = datetime.now()
   time_str = now.strftime("%Y%m%d_%H%M%S")
   NAME = name
   if NAME is None:
     NAME = 'model_' + time_str
   IMAGE_SIZE = image_size   # 32, 16
-  LEARNING_RATE = learning_rate   # 0.01, 0.001, 0.0001 
   EARLY_STOPPING_MIN = early_stopping_min
   EPOCHS_MIN = epochs_min
   BALANCED = False # True이면 train batch 뽑을 때 y가 골고루 나오도록 한다.
@@ -208,8 +212,6 @@ def train_model(model, name=None, image_size=32, early_stopping_min=1, epochs_mi
   batch_x, batch_y = dataset[0]
   plt.imshow(batch_x[0])
 
-  from keras.models import Sequential, Model
-  from keras.layers import Input, Dense, Dropout, Activation, Flatten, Conv2D, BatchNormalization, Reshape, MaxPooling2D
 
   model.summary()
 
@@ -221,7 +223,6 @@ def train_model(model, name=None, image_size=32, early_stopping_min=1, epochs_mi
   model_save_path = os.path.join(PATH, NAME + '.h5')
   history_accum = {k:[] for k in ['loss', 'accuracy', 'val_loss', 'val_accuracy', 'f1_score']}
 
-  from sklearn.metrics import f1_score
 
   while True:
     history = model.fit_generator(dataset)
@@ -235,7 +236,6 @@ def train_model(model, name=None, image_size=32, early_stopping_min=1, epochs_mi
     if best_f1 < f1:
       best_f1 = f1
       earlystop_start = datetime.now()
-      early_stop_counter = 0
       print('Best f1 changed:', best_f1)
       os.makedirs(PATH, exist_ok=True)
       model.save(model_save_path)
@@ -253,8 +253,6 @@ def train_model(model, name=None, image_size=32, early_stopping_min=1, epochs_mi
   y_pred_soft = model.predict(x_valid)
   y_pred = np.array(onehot_helper.recover(y_pred_soft))
 
-  from sklearn.metrics import f1_score, recall_score, precision_score
-  from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
 
   # 결과 기록
   os.makedirs(PATH, exist_ok=True)
@@ -300,7 +298,6 @@ def build_model1(image_size=32, learning_rate=0.001):
     Dense(outputs, activation='softmax')
   ])
 
-  from keras.optimizers import Adam
   opt = Adam(lr=learning_rate)
   model.compile(loss = 'categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
@@ -325,7 +322,6 @@ def build_model2(image_size=32, learning_rate=0.001):
     Dense(outputs, activation='softmax')
   ])
 
-  from keras.optimizers import Adam
   opt = Adam(lr=learning_rate)
   model.compile(loss = 'categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
@@ -350,7 +346,6 @@ def build_model4(image_size=32, learning_rate=0.001):
     Dense(outputs, activation='softmax')
   ])
 
-  from keras.optimizers import Adam
   opt = Adam(lr=learning_rate)
   model.compile(loss = 'categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
