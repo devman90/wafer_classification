@@ -13,6 +13,7 @@ Original file is located at
 
 import pandas as pd
 import numpy as np
+import numpy
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import os
@@ -199,7 +200,6 @@ def train_model(name=None, image_size=32, learning_rate=0.001, early_stopping=50
 
   x_test, y_test = read_xy('data/wafer_test_{}.pkl'.format(IMAGE_SIZE))
 
-  import numpy
 
   onehot_helper = OneHotHelper(labels=[0, 1, 2, 3, 4, 5, 6, 7, 8])
   y_train_onehot = onehot_helper.transform(y_train)
@@ -230,7 +230,7 @@ def train_model(name=None, image_size=32, learning_rate=0.001, early_stopping=50
   def build_model_2(input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3), outputs=9):
     model = Sequential([
       Conv2D(16, 3, padding='same', activation='relu', input_shape=input_shape),
-      Conv2D(32, 3, padding='same', activation='relu')
+      Conv2D(32, 3, padding='same', activation='relu'),
       MaxPooling2D(),
       Conv2D(32, 3, padding='same', activation='relu'),
       Conv2D(32, 3, padding='same', activation='relu'),
