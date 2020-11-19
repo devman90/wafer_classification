@@ -165,7 +165,7 @@ def test_onehot():
 # test_onehot()
 
 
-def train_model(name=None, image_size=32, learning_rate=0.001, early_stopping=50, epochs=1000, arch=1, path=None):
+def train_model(model, name=None, image_size=32, early_stopping_min=1, epochs_min=20, path=None):
   from datetime import datetime
   now = datetime.now()
   time_str = now.strftime("%Y%m%d_%H%M%S")
@@ -174,10 +174,9 @@ def train_model(name=None, image_size=32, learning_rate=0.001, early_stopping=50
     NAME = 'model_' + time_str
   IMAGE_SIZE = image_size   # 32, 16
   LEARNING_RATE = learning_rate   # 0.01, 0.001, 0.0001 
-  EARLY_STOPPING = early_stopping
-  EPOCHS = epochs
+  EARLY_STOPPING_MIN = early_stopping_min
+  EPOCHS_MIN = epochs_min
   BALANCED = False # True이면 train batch 뽑을 때 y가 골고루 나오도록 한다.
-  ARCH = arch
   PATH = path
   if PATH is None:
     PATH = 'model_' + time_str
@@ -212,61 +211,20 @@ def train_model(name=None, image_size=32, learning_rate=0.001, early_stopping=50
   from keras.models import Sequential, Model
   from keras.layers import Input, Dense, Dropout, Activation, Flatten, Conv2D, BatchNormalization, Reshape, MaxPooling2D
 
-  def build_model_1(input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3), outputs=9):
-    model = Sequential([
-      Conv2D(16, 3, padding='same', activation='relu', input_shape=input_shape),
-      MaxPooling2D(),
-      Conv2D(32, 3, padding='same', activation='relu'),
-      MaxPooling2D(),
-      Conv2D(64, 3, padding='same', activation='relu'),
-      MaxPooling2D(),
-      Dropout(0.2),
-      Flatten(),
-      Dense(128, activation='relu'),
-      Dense(outputs, activation='softmax')
-    ])
-    return model
-
-  def build_model_2(input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3), outputs=9):
-    model = Sequential([
-      Conv2D(16, 3, padding='same', activation='relu', input_shape=input_shape),
-      Conv2D(32, 3, padding='same', activation='relu'),
-      MaxPooling2D(),
-      Conv2D(32, 3, padding='same', activation='relu'),
-      Conv2D(32, 3, padding='same', activation='relu'),
-      MaxPooling2D(),
-      Conv2D(32, 3, padding='same', activation='relu'),
-      Conv2D(16, 3, padding='same', activation='relu'),
-      MaxPooling2D(),
-      Dropout(0.2),
-      Flatten(),
-      Dense(128, activation='relu'),
-      Dense(outputs, activation='softmax')
-    ])
-    return model
-
-  model_builder = [None, build_model_1, build_model_2]
-
-  model = model_builder[ARCH](input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3), outputs=9)
-
   model.summary()
-
-  from keras.optimizers import Adam
-  opt = Adam(lr=LEARNING_RATE)
-  model.compile(loss = 'categorical_crossentropy', optimizer = opt, metrics = ['accuracy'])
 
   dataset = DataGenerator(x_train, y_train_onehot, batch_size=32, shuffle=True, balanced=BALANCED)
 
   best_f1 = 0.0
-  early_stop_counter = 0
+  epoch_start = datetime.now()
+  earlystop_start = datetime.now()
   model_save_path = os.path.join(PATH, NAME + '.h5')
   history_accum = {k:[] for k in ['loss', 'accuracy', 'val_loss', 'val_accuracy', 'f1_score']}
 
   from sklearn.metrics import f1_score
 
-  for epoch in range(EPOCHS):
+  while True:
     history = model.fit_generator(dataset)
-
     y_pred_soft = model.predict(x_valid)
     y_pred = np.array(onehot_helper.recover(y_pred_soft))
     f1 = f1_score(y_valid, y_pred, average='macro')
@@ -274,14 +232,20 @@ def train_model(name=None, image_size=32, learning_rate=0.001, early_stopping=50
     for k in history.history:
       history_accum[k] += history.history[k]
     history_accum['f1_score'] += [f1]
-    early_stop_counter += 1
     if best_f1 < f1:
       best_f1 = f1
+      earlystop_start = datetime.now()
       early_stop_counter = 0
       print('Best f1 changed:', best_f1)
       os.makedirs(PATH, exist_ok=True)
       model.save(model_save_path)
-    if early_stop_counter >= EARLY_STOPPING:
+    elapsed_min = ((datetime.now() - epoch_start).total_seconds) / 60.
+    if elapsed_min >= EPOCHS_MIN:
+      print('Epoch stopping')
+      break
+    earlystop_min = ((datetime.now() - earlystop_start).total_seconds) / 60.
+    if earlystop_min >= EARLY_STOPPING_MIN:
+      print('Early stopping')
       break
 
   model = keras.models.load_model(model_save_path)
@@ -320,6 +284,77 @@ def train_model(name=None, image_size=32, learning_rate=0.001, early_stopping=50
       'failureNum': y_test
   }).to_pickle(os.path.join(PATH, 'y_test_pred.pkl'))
 
+def build_model1(image_size=32, learning_rate=0.001):
+  input_shape = (image_size, image_size, 3)
+  outputs = 9
+  model = Sequential([
+    Conv2D(16, 3, padding='same', activation='relu', input_shape=input_shape),
+    MaxPooling2D(),
+    Conv2D(32, 3, padding='same', activation='relu'),
+    MaxPooling2D(),
+    Conv2D(64, 3, padding='same', activation='relu'),
+    MaxPooling2D(),
+    Dropout(0.2),
+    Flatten(),
+    Dense(128, activation='relu'),
+    Dense(outputs, activation='softmax')
+  ])
+
+  from keras.optimizers import Adam
+  opt = Adam(lr=learning_rate)
+  model.compile(loss = 'categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+
+  return model
+
+def build_model2(image_size=32, learning_rate=0.001):
+  input_shape = (image_size, image_size, 3)
+  outputs = 9
+  model = Sequential([
+    Conv2D(32, 3, padding='same', activation='relu', input_shape=input_shape),
+    Conv2D(32, 3, padding='same', activation='relu'),
+    MaxPooling2D(),
+    Conv2D(32, 3, padding='same', activation='relu'),
+    Conv2D(32, 3, padding='same', activation='relu'),
+    MaxPooling2D(),
+    Conv2D(32, 3, padding='same', activation='relu'),
+    Conv2D(16, 3, padding='same', activation='relu'),
+    MaxPooling2D(),
+    Dropout(0.2),
+    Flatten(),
+    Dense(128, activation='relu'),
+    Dense(outputs, activation='softmax')
+  ])
+
+  from keras.optimizers import Adam
+  opt = Adam(lr=learning_rate)
+  model.compile(loss = 'categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+
+  return model
+
+def build_model4(image_size=32, learning_rate=0.001):
+  input_shape = (image_size, image_size, 3)
+  outputs = 9
+  model = Sequential([
+    Conv2D(32, 3, padding='same', activation='relu', input_shape=input_shape),
+    Conv2D(32, 3, padding='same', activation='relu'),
+    MaxPooling2D(),
+    Conv2D(32, 3, padding='same', activation='relu'),
+    Conv2D(32, 3, padding='same', activation='relu'),
+    MaxPooling2D(),
+    Conv2D(32, 3, padding='same', activation='relu'),
+    Conv2D(16, 3, padding='same', activation='relu'),
+    MaxPooling2D(),
+    Dropout(0.2),
+    Flatten(),
+    Dense(128, activation='relu'),
+    Dense(outputs, activation='softmax')
+  ])
+
+  from keras.optimizers import Adam
+  opt = Adam(lr=learning_rate)
+  model.compile(loss = 'categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+
+  return model
 
 if __name__ == '__main__':
-  train_model(name='model3', image_size=32, learning_rate=0.001, early_stopping=50, epochs=1000, arch=2, path='model3')
+  train_model(model=build_model4(), name='model4', image_size=32, early_stopping_min=1, epochs_min=10)
