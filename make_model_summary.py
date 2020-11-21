@@ -25,9 +25,13 @@ for model_path in model_paths:
 
 f1_model_pairs = sorted(f1_model_pairs)[::-1]
 
-for f1, model_path, model in f1_model_pairs[:10]:
-    print(model_path)
-    print(f1)
+rank = 1
+for f1, model_path, model in f1_model_pairs:
+    print('Rank:', rank)
+    rank += 1
+    print('Path:', model_path)
+    print('f1:', f1)
+    print('Model')
     model.summary()
     print()
     print()
